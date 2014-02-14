@@ -1,0 +1,44 @@
+<?php
+/**
+ * @file
+ * Installation file for Google A/B Testing Experiments module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function google_abtesting_schema() {
+  $schema['google_abtesting'] = array(
+    'description' => 'Google A/B Testing experiments code table.',
+    'fields' => array(
+      'eid' => array(
+        'description' => 'The primary identifier for Google Experiment.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'language' => array(
+        'description' => 'Language specific experiment.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'path' => array(
+        'description' => 'The panel/node page path.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'experiment_key' => array(
+        'description' => 'The Google Experiment key.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('eid'),
+  );
+  return $schema;
+}

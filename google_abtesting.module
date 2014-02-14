@@ -1,0 +1,189 @@
+<?php
+/**
+ * @file
+ * Google A/B Testing Content Experiments module. Allows inserting Google
+ * Experiments code into the header for any node/page.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function google_abtesting_permission() {
+  return array(
+    'administer google_abtesting experiments' => array(
+      'title' => t('Administer Google A/B Testing Experiments module'),
+      'description' => t('Permission to change Google A/B Testing Experiments settings'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function google_abtesting_menu() {
+  $items['admin/config/system/gab-experiments'] = array(
+    'title' => 'Google A/B Testing Content Experiments',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_settings_form'),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'description' => 'Configuration settings for A/B Testing experiments.',
+    'file' => 'includes/google_abtesting.admin.inc',
+  );
+
+  $items['admin/config/system/gab-experiments/settings'] = array(
+    'title' => 'Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_settings_form'),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'description' => 'Configuration settings for A/B Testing experiments.',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'file' => 'includes/google_abtesting.admin.inc',
+    'weight' => -10,
+  );
+
+  $items['admin/config/system/gab-experiments/list'] = array(
+    'title' => 'Experiment Lists',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_experiments_list_form'),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'description' => 'Configure the settings used to generate your Experiments code.',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'includes/google_abtesting.admin_experiments_list.inc',
+    'weight' => -9,
+  );
+
+  $items['admin/config/system/gab-experiments/add'] = array(
+    'title' => 'Add Experiment',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_add_experiments_form'),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'description' => 'Add experiments to pages.',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'includes/google_abtesting.admin.inc',
+  );
+
+  $items['admin/config/system/gab-experiments/edit/%'] = array(
+    'title' => 'Edit',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_add_experiments_form', 5),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'weight' => 0,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'file' => 'includes/google_abtesting.admin.inc',
+  );
+
+  $items['admin/config/system/gab-experiments/delete/%'] = array(
+    'title' => 'Delete',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('google_abtesting_admin_experiments_delete_confirm', 5),
+    'access arguments' => array('administer google_abtesting experiments'),
+    'weight' => 1,
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_INLINE,
+    'file' => 'includes/google_abtesting.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_preprocess_page().
+ *
+ * Alter head section of a page to add Experiment code.
+ */
+function google_abtesting_preprocess_page(&$variables) {
+  $inline_code = '';
+  $inline_domain_script = '';
+
+  if (!$ekey = google_abtesting_get_experiment_code()) {
+    return;
+  }
+
+  $ga_domain_name = variable_get('google_abtesting_ga_domain', '');
+  $experiment_key = rtrim(ltrim($ekey));
+
+  if (!empty($ga_domain_name)) {
+    /* As per the Google Analytics documentation we need to put domain name
+     * above the Google Experiment code. Check below links for more information.
+     *
+     * FAQ of Errors - https://support.google.com/analytics/answer/2364634
+     * Implementation - https://support.google.com/analytics/answer/2710493?hl=
+     */
+    $inline_domain_script = "<script>_udn = '" . variable_get('google_abtesting_ga_domain', '') . "';</script>\r\n";
+  }
+
+  $inline_code = $inline_domain_script;
+  // Get experiment JS code.
+  $inline_code .= theme('ga_experiment_code', array(
+    'experiment_key' => $experiment_key,
+  ));
+
+  $element = array(
+    '#type' => 'markup',
+    '#markup' => $inline_code,
+  );
+
+  // Add the code in header.
+  drupal_add_html_head($element, 'ga_experiment_code');
+}
+
+/**
+ * Implements hook_theme().
+ */
+function google_abtesting_theme($existing, $type, $theme, $path) {
+  return array(
+    'ga_experiment_code' => array(
+      'template' => 'ga_experiment_code',
+      'variables' => array(
+        'experiment_key' => NULL,
+      ),
+    ),
+  );
+}
+
+/**
+ * Helper function to fetch the experiment code for current page if any set.
+ *
+ * @return mixed
+ *   $code
+ */
+function google_abtesting_get_experiment_code() {
+  $code = '';
+  $current_path = _google_abtesting_path_aliases(current_path());
+  $result = db_select('google_abtesting', 'ab')
+    ->fields('ab', array('experiment_key'))
+    ->condition('path', $current_path)
+    ->execute()
+    ->fetch();
+
+  if ($result && $result->experiment_key) {
+    $code = $result->experiment_key;
+  }
+  return $code;
+}
+
+/**
+ * Get a path and all of it possible aliases.
+ */
+function _google_abtesting_path_aliases($path) {
+  $current_path = array(drupal_get_path_alias($path));
+  if ($current_path[0] != $path) {
+    $current_path[] = $path;
+  }
+  return $current_path;
+}
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function google_abtesting_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+  // Add action link to 'Add Experiment' listing page.
+  if ($root_path == 'admin/config/system/gab-experiments/list') {
+    $item = menu_get_item('admin/config/system/gab-experiments/add');
+    if ($item['access']) {
+      $data['actions']['output'][] = array(
+        '#theme' => 'menu_local_action',
+        '#link' => $item,
+      );
+    }
+  }
+}

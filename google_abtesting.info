@@ -1,0 +1,4 @@
+name = Google A/B Testing Content Experiments
+description = Allows inserting Google A/B Testing Content Experiments code in the header of any page.
+core = 7.x-1.x-dev
+configure = admin/config/system/gab-experiments

@@ -73,13 +73,6 @@ function google_abtesting_admin_add_experiments_form($form, &$form_state, $argum
     ),
   );
 
-  $form['submit'] = array(
-    '#type' => 'actions',
-    'submit' => array(
-      '#type' => 'submit',
-      '#value' => t('Save'),
-    ),
-  );
   return $form;
 }
 
